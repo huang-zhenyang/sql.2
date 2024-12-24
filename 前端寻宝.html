@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <title>寻宝游戏</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: "PingFangSC-Regular", "微软雅黑", sans-serif;
+        height: 100%;
+        background-color: #f0f0f0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+      }
+      h1 {
+        font-size: 24px;
+        letter-spacing: -1px;
+        color: #333;
+        margin: 20px 0;
+      }
+      #controlPanel {
+        margin-top: 20px;
+      }
+      #controlPanel button {
+        padding: 5px 10px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      #messageDisplay {
+        margin-top: 20px;
+        color: #333;
+      }
+      #backgroundMusic {
+        display: none;
+      }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+</head>
+<body>
+<h1>寻宝游戏</h1>
+<audio id="backgroundMusic" loop>
+  <source src="background.mp3" type="audio/mpeg">
+</audio>
+<div id="loginPanel" style="display: block;">
+    <input type="text" id="username" placeholder="用户名">
+    <input type="password" id="password" placeholder="密码">
+    <button id="loginButton">登录</button>
+</div>
+<div id="controlPanel" style="display: none;">
+    <button id="startButton">开始寻宝</button>
+    <button id="nextButton" style="display: none;">下一步</button>
+    <input type="text" id="passwordInput" style="display: none; margin-top: 10px;"/>
+    <button id="unlockButton" style="display: none;">解锁保险箱</button>
+    <button id="restartButton" style="display: none;">重新开始</button>
+</div>
+<div id="playerInfoDisplay"></div>
+<div id="messageDisplay"></div> <!-- 消息显示容器 -->
+<script>
+  // 假设这是摩斯密码和正确密码
+  const morseCode = "_ _ _ _ _; _ _ . . .; . . _ _ _; . _ _ _ _  ";
+  const correctPassword = "0721";
+  const startButton = document.getElementById('startButton');
+  const nextButton = document.getElementById('nextButton');
+  const messageDisplay = document.getElementById('messageDisplay');
+  const passwordInput = document.getElementById('passwordInput');
+  const unlockButton = document.getElementById('unlockButton');
+  const restartButton = document.getElementById('restartButton');
+  const loginButton = document.getElementById('loginButton');
+  const usernameInput = document.getElementById('username');
+  const passwordInputForm = document.getElementById('password');
+
+  class TreasureMap {
+      static async getInitialClue() {
+        try {
+          const response = await fetch('零号大坝线索.txt');
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const text = await response.text();
+          return text;
+        } catch (error) {
+          console.error('Failed to fetch 零号大坝线索.txt:', error);
+          return "无法加载线索，请检查文件路径和服务器配置。";
+        }
+      }
+  
+      static async decodeAncientScript() {
+        const response = await fetch('行政辖区线索.txt');
+        const text = await response.text();
+        return text;
+      }
+  
+      static async searchTemple() {
+        const response = await fetch('赛依德线索.txt');
+        const text = await response.text();
+        return text;
+      }
+  
+      static async openTreasureBox() {
+        const response = await fetch('保险箱线索.txt');
+        const text = await response.text();
+        return text;
+      }
+  }
+
+  let step = 1;
+  let isTreasureFound = false;
+  let playerInfo = JSON.parse(localStorage.getItem('playerInfo')) || { playerId: '', nickname: '', gameHistory: [] };
+
+  async function findTreasureWithAsyncAwait() {
+    try {
+      messageDisplay.textContent = ''; // 清空消息显示
+      switch (step) {
+        case 1:
+          displayEvent(await TreasureMap.getInitialClue());
+          break;
+        case 2:
+          displayEvent("你一路摸索排查，终于来到了行政辖区的楼下，突然，你看到草丛中有一张图纸，你捡起并打开了它");
+          break;
+        case 3:
+          displayEvent(await TreasureMap.decodeAncientScript());
+          break;
+        case 4:
+          displayEvent("你摸进了行政楼，在你小心翼翼之时，你看到了桌上的一张纸，上面写着");
+          break;
+        case 5:
+          displayEvent(await TreasureMap.searchTemple());
+          break;
+        case 6:
+          const treasureBoxClue = await TreasureMap.openTreasureBox();
+          displayEvent("你更加小心，终于，你找到了保险箱，在保险箱上看到了一串小字：" + treasureBoxClue);
+          break;
+        case 7:
+          // 显示密码输入框和解锁按钮
+          document.getElementById('nextButton').style.display = 'none';
+          document.getElementById('passwordInput').style.display = 'inline';
+          document.getElementById('unlockButton').style.display = 'inline';
+          displayEvent("请根据摩斯密码输入正确密码：" + morseCode);
+          break;
+        case 8:
+          // 验证密码
+          const password = document.getElementById('passwordInput').value;
+          if (password === correctPassword) {
+            displayEvent("寻宝成功！");
+            isTreasureFound = true;
+            saveScore(100, "寻宝成功"); // 假设寻宝成功得分100
+          } else {
+            displayEvent("密码错误，你惹出的动静引来了牢赛！丸辣！你被牢赛肘飞了！");
+            saveScore(0, "密码错误"); // 密码错误得分0
+          }
+          // 重置界面元素
+          document.getElementById('nextButton').style.display = 'inline';
+          document.getElementById('passwordInput').style.display = 'none';
+          document.getElementById('unlockButton').style.display = 'none';
+          document.getElementById('restartButton').style.display = 'inline';
+          break;
+      }
+      step++; // 递增步骤
+    } catch (error) {
+        displayEvent(error.message); // 如果发生错误则显示错误信息
+    }
+  }
+
+  function displayEvent(message) {
+    messageDisplay.textContent += message + '\n\n'; // 显示当前事件，并添加换行
+  }
+
+  loginButton.addEventListener('click', function() {
+    const username = usernameInput.value;
+    const password = passwordInputForm.value;
+    fetch('/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 'username': username, 'password': password }),
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.message === '您已成功登录') {
+        document.getElementById('loginPanel').style.display = 'none';
+        document.getElementById('controlPanel').style.display = 'block';
+        fetchPlayerInfo();
+      } else {
+        alert('登录失败，请重试。');
+      }
+    })
+    .catch((error) => console.error('Error:', error));
+  });
+
+  startButton.addEventListener('click', function() {
+    if (!startButton.disabled) {
+      startButton.style.display = 'none';
+      nextButton.style.display = 'inline';
+      step = 1; // 重置步骤
+      isTreasureFound = false; // 重置宝藏状态
+      messageDisplay.textContent = ''; // 清空消息显示
+      passwordInput.style.display = 'none';
+      unlockButton.style.display = 'none';
+      restartButton.style.display = 'none';
+      restoreGameHistory(); // 恢复游戏历史
+      findTreasureWithAsyncAwait();
+    }
+  });
+
+  nextButton.addEventListener('click', function() {
+    if (step < 8) { // 只有当step小于8时，才能点击下一步
+      findTreasureWithAsyncAwait();
+    }
+  });
+
+  document.getElementById('unlockButton').addEventListener('click', function() {
+    // 当用户点击解锁按钮时，跳转到验证密码的步骤
+    step = 8; // 跳转到密码验证步骤
+    findTreasureWithAsyncAwait();
+  });
+
+  restartButton.addEventListener('click', function() {
+    step = 1; // 重置步骤
+    isTreasureFound = false; // 重置宝藏状态
+    messageDisplay.textContent = ''; // 清空消息显示
+    nextButton.style.display = 'inline';
+    passwordInput.style.display = 'none';
+    unlockButton.style.display = 'none';
+restartButton.style.display = 'none';
+restoreGameHistory(); // 恢复游戏历史
+findTreasureWithAsyncAwait();
+});
+
+// 游戏开始时播放背景音乐
+var backgroundMusic = new Howl({
+src: ['background.mp3']
+});
+
+window.addEventListener('load', function() {
+backgroundMusic.play();
+restoreGameHistory(); // 恢复游戏历史
+displayPlayerInfo(); // 显示玩家信息
+});
+
+// 使用Web Storage API 存储玩家信息
+function savePlayerInfo() {
+localStorage.setItem('playerInfo', JSON.stringify(playerInfo));
+}
+
+window.addEventListener('unload', function() {
+// 浏览器关闭时保存玩家信息
+savePlayerInfo();
+});
+
+// 恢复游戏历史
+function restoreGameHistory() {
+playerInfo.gameHistory = JSON.parse(localStorage.getItem('gameHistory')) || [];
+savePlayerInfo(); // 保存玩家信息
+}
+
+
+
+// 添加得分
+function saveScore(score, gameHistory) {
+const scoreData = {
+playerId: playerInfo.playerId,
+score: score,
+gameHistory: gameHistory
+};
+fetch('/complete_level', {
+method: 'POST',
+headers: {
+'Content-Type': 'application/json',
+},
+body: JSON.stringify(scoreData),
+})
+.then(response => response.json())
+.then(data => console.log(data.message))
+.catch((error) => console.error('Error:', error));
+}
+
+// 获取玩家信息和得分历史
+function fetchPlayerInfo() {
+  fetch(`/player/${playerInfo.playerId}`)
+    .then(response => response.json())
+    .then(data => {
+      const playerInfoDisplay = document.getElementById('playerInfoDisplay');
+      if (playerInfoDisplay) {
+        playerInfoDisplay.innerHTML = `玩家ID:${data.playerId}<br>昵称: ${data.nickname}<br>游戏历史: ${data.scores.map(s => s.gameHistory).join(', ')}`;
+      }
+    })
+    .catch((error) => console.error('Error:', error));
+}
+</script>
+
+</body>
+ </html> 
